@@ -160,6 +160,14 @@ body {
   line-height: 1.2;
   word-break: keep-all;
 }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
 </style>
 </head>
 <body class="flex flex-col h-screen text-white">
@@ -192,7 +200,11 @@ body {
       <button onclick="setFilter('dashed')" id="filter-dashed" class="px-2.5 py-1 rounded text-[11px] font-bold border border-gray-700 bg-gray-800 text-gray-400">点線のみ (奥)</button>
     </div>
 
-    <input id="player-top" type="text" placeholder="奥の選手名" class="text-center bg-gray-800/80 text-white border border-gray-600 rounded py-1 px-2 text-xs sm:text-sm focus:outline-none focus:border-teal-500 transition-colors shadow-sm" style="width: min(72vw, calc(76vh / 2.1));">
+    <!-- 奥：選手名 & 得点 -->
+    <div class="flex items-center gap-2 justify-between" style="width: min(72vw, calc(76vh / 2.1));">
+      <input id="player-top" type="text" placeholder="奥の選手名" class="flex-grow text-center bg-gray-800/80 text-white border border-gray-600 rounded py-1 px-2 text-xs sm:text-sm focus:outline-none focus:border-teal-500 transition-colors shadow-sm">
+      <input id="score-top" type="number" min="0" placeholder="点数" class="w-14 sm:w-16 text-center bg-gray-800/80 text-teal-400 font-bold border border-gray-600 rounded py-1 px-1 text-xs sm:text-sm focus:outline-none focus:border-teal-500 transition-colors shadow-sm">
+    </div>
     
     <!-- コート本体 -->
     <div class="court-container shrink-0">
@@ -217,7 +229,11 @@ body {
       <canvas id="trajectory-canvas" width="400" height="840"></canvas>
     </div>
     
-    <input id="player-bottom" type="text" placeholder="手前の選手名" class="text-center bg-gray-800/80 text-white border border-gray-600 rounded py-1 px-2 text-xs sm:text-sm focus:outline-none focus:border-teal-500 transition-colors shadow-sm" style="width: min(72vw, calc(76vh / 2.1));">
+    <!-- 手前：選手名 & 得点 -->
+    <div class="flex items-center gap-2 justify-between" style="width: min(72vw, calc(76vh / 2.1));">
+      <input id="player-bottom" type="text" placeholder="手前の選手名" class="flex-grow text-center bg-gray-800/80 text-white border border-gray-600 rounded py-1 px-2 text-xs sm:text-sm focus:outline-none focus:border-teal-500 transition-colors shadow-sm">
+      <input id="score-bottom" type="number" min="0" placeholder="点数" class="w-14 sm:w-16 text-center bg-gray-800/80 text-teal-400 font-bold border border-gray-600 rounded py-1 px-1 text-xs sm:text-sm focus:outline-none focus:border-teal-500 transition-colors shadow-sm">
+    </div>
   </div>
 
   <!-- 右側：ツールバー -->
@@ -495,12 +511,31 @@ async function saveToGallery() {
   const captureArea = document.getElementById('capture-area');
   try {
     const canvasImg = await html2canvas(captureArea, { backgroundColor: '#0b1121', scale: 2, logging: false });
-    const pTop = document.getElementById('player-top').value || '奥', pBottom = document.getElementById('player-bottom').value || '手前';
+    const pTop = document.getElementById('player-top').value || '奥';
+    const sTop = document.getElementById('score-top').value || '0';
+    const pBottom = document.getElementById('player-bottom').value || '手前';
+    const sBottom = document.getElementById('score-bottom').value || '0';
     const now = new Date();
     const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    const item = { id: Date.now(), date: dateStr, playerTop: pTop, playerBottom: pBottom, totalMisses: counts.reduce((a, b) => a + b, 0), counts: [...counts], shotCounts: { smash: drawnLines.filter(l => l.type === 'smash').length, drop: drawnLines.filter(l => l.type === 'drop').length, clear: drawnLines.filter(l => l.type === 'clear').length, hairpin: drawnLines.filter(l => l.type === 'hairpin').length }, dataUrl: canvasImg.toDataURL('image/png') };
+    const item = { 
+      id: Date.now(), 
+      date: dateStr, 
+      playerTop: pTop, 
+      scoreTop: sTop, 
+      playerBottom: pBottom, 
+      scoreBottom: sBottom, 
+      totalMisses: counts.reduce((a, b) => a + b, 0), 
+      counts: [...counts], 
+      shotCounts: { 
+        smash: drawnLines.filter(l => l.type === 'smash').length, 
+        drop: drawnLines.filter(l => l.type === 'drop').length, 
+        clear: drawnLines.filter(l => l.type === 'clear').length, 
+        hairpin: drawnLines.filter(l => l.type === 'hairpin').length 
+      }, 
+      dataUrl: canvasImg.toDataURL('image/png') 
+    };
     savedSheets.unshift(item); saveToStorage(); updateSavedCount();
-    const link = document.createElement('a'); link.download = `CourtVision_${pTop}_vs_${pBottom}_${Date.now()}.png`; link.href = item.dataUrl; link.click(); openGallery();
+    const link = document.createElement('a'); link.download = `CourtVision_${pTop}(${sTop})_vs_${pBottom}(${sBottom})_${Date.now()}.png`; link.href = item.dataUrl; link.click(); openGallery();
   } catch (error) { console.error(error); }
 }
 
@@ -518,7 +553,7 @@ function renderGalleryList() {
       <img src="${item.dataUrl}" class="w-20 aspect-[1/2.1] object-contain bg-black/40 rounded border border-gray-700" />
       <div class="flex-grow text-xs space-y-1">
         <div class="flex justify-between text-gray-400"><span>${item.date}</span><span class="text-teal-400 font-bold">総ミス: ${item.totalMisses}</span></div>
-        <div class="font-bold text-white">${item.playerTop} vs ${item.playerBottom}</div>
+        <div class="font-bold text-white">${item.playerTop} (${item.scoreTop ?? 0}) vs ${item.playerBottom} (${item.scoreBottom ?? 0})</div>
       </div>
       <button onclick="deleteItem(${item.id})" class="px-3 py-1 bg-red-950 text-red-300 rounded text-xs">削除</button>
     </div>`).join('');
@@ -526,14 +561,22 @@ function renderGalleryList() {
 function deleteItem(id) { savedSheets = savedSheets.filter(i => i.id !== id); saveToStorage(); updateSavedCount(); renderGalleryList(); }
 function exportCSV() {
   if (savedSheets.length === 0) return;
-  let csv = '\uFEFF日時,奥選手名,手前選手名,総ミス数,スマッシュ数,ドロップ数,クリア数,ヘアピンロブ数\n';
-  savedSheets.forEach(item => { csv += `"${item.date}","${item.playerTop}","${item.playerBottom}",${item.totalMisses},${item.shotCounts.smash},${item.shotCounts.drop},${item.shotCounts.clear},${item.shotCounts.hairpin}\n`; });
+  let csv = '\uFEFF日時,奥選手名,奥得点,手前選手名,手前得点,総ミス数,スマッシュ数,ドロップ数,クリア数,ヘアピンロブ数\n';
+  savedSheets.forEach(item => { csv += `"${item.date}","${item.playerTop}",${item.scoreTop ?? 0},"${item.playerBottom}",${item.scoreBottom ?? 0},${item.totalMisses},${item.shotCounts.smash},${item.shotCounts.drop},${item.shotCounts.clear},${item.shotCounts.hairpin}\n`; });
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `Summary.csv`; link.click();
 }
 function openModal() { document.getElementById('reset-modal').classList.remove('pointer-events-none', 'opacity-0'); }
 function closeModal() { document.getElementById('reset-modal').classList.add('opacity-0', 'pointer-events-none'); }
-function confirmReset() { counts.fill(0); drawnLines = []; recalculateDisplayCounts(); redrawAll(); closeModal(); }
+function confirmReset() { 
+  counts.fill(0); 
+  drawnLines = []; 
+  document.getElementById('score-top').value = '';
+  document.getElementById('score-bottom').value = '';
+  recalculateDisplayCounts(); 
+  redrawAll(); 
+  closeModal(); 
+}
 </script>
 </body>
 </html>
